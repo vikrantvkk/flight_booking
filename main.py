@@ -172,10 +172,34 @@ class FlightBookingService:
         flights_list += set(flights_layover_src) & set(flights_to_dst)
         flights_list += set(flights_layover_src) & set(flights_layover_dst)
 
-        return [self.generate_flight_details(i, source, destination) for i in flights_list
-                if self.filter_by_departure_time(source, i, departure_time)]
+        return [self._generate_flight_details(i, source, destination) for i in flights_list
+                if self._filter_by_departure_time(source, i, departure_time)]
 
-    def generate_flight_details(self, flight_num, source, destination):
+    def add_booking(self, flight_number, source, destination, passengers, departure_time):
+        self._validate_booking_input(flight_number, source, destination, departure_time, len(passengers))
+
+        primary_passenger = passengers[0]
+        customer = self.users[primary_passenger["emailId"]]
+        flight = self.flights[flight_number]
+        flight.flight_instances[departure_time]["seats"] -= len(passengers)
+
+        passengers_list = []
+        for passenger in passengers[1:]:
+            pax = Person(passenger["firstName"], passenger["lastName"], passenger["age"], None, None)
+            passengers_list.append(pax)
+
+        booking = Booking(customer, passengers_list, flight, departure_time,
+                          self._generate_flight_details(flight_number, source, destination)["itinerary"])
+        self.bookings[booking.id] = booking
+        customer.add_booking(booking.id)
+
+    def _validate_booking_input(self, flight_number, source, destination, departure_time, number_of_seats):
+        pass
+
+    def _filter_by_departure_time(self, s, i, t):
+        return self.flights[i].route[s]["current"].departure_time >= t
+
+    def _generate_flight_details(self, flight_num, source, destination):
         hop_count = 0
         hop = self.flights[flight_num].route[source]
         route = hop["current"].hop_code
@@ -193,28 +217,4 @@ class FlightBookingService:
                 "arrivalTime": arrival_time,
                 "itinerary": route,
                 "hops": hop_count}
-
-    def add_booking(self, flight_number, source, destination, passengers, departure_time):
-        self.validate_booking_input(flight_number, source, destination, departure_time, len(passengers))
-
-        primary_passenger = passengers[0]
-        customer = self.users[primary_passenger["emailId"]]
-        flight = self.flights[flight_number]
-        flight.flight_instances[departure_time]["seats"] -= len(passengers)
-
-        passengers_list = []
-        for passenger in passengers[1:]:
-            pax = Person(passenger["firstName"], passenger["lastName"], passenger["age"], None, None)
-            passengers_list.append(pax)
-
-        booking = Booking(customer, passengers_list, flight, departure_time,
-                          self.generate_flight_details(flight_number, source, destination)["itinerary"])
-        self.bookings[booking.id] = booking
-        customer.add_booking(booking.id)
-
-    def validate_booking_input(self, flight_number, source, destination, departure_time, number_of_seats):
-        pass
-
-    def filter_by_departure_time(self, s, i, t):
-        return self.flights[i].route[s]["current"].departure_time >= t
 
